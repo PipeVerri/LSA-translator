@@ -45,7 +45,7 @@ This representation is:
 
 > See [`src/lm_processing/landmarks.py`](src/lm_processing/landmarks.py) for normalization and coordinate transform details.
 
-<!-- TODO: Add landmark visualization screenshot here (docs/figures/landmark_visualization.png) -->
+![](/docs/mediapipe_landmarks.png)
 
 ### Architecture — Phase 1
 
@@ -66,7 +66,7 @@ The real-time inference pipeline uses a **sliding window** (2 s at 12 FPS, strid
 
 > See [`src/models/`](src/models/) and [`src/scripts/real_time_prediction.py`](src/scripts/real_time_prediction.py).
 
-<!-- TODO: Add architecture pipeline diagram here (docs/figures/architecture_pipeline.png) -->
+![](/docs/experiment1-diagram.png)
 
 ---
 
