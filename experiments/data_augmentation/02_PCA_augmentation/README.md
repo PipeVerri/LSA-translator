@@ -1,9 +1,22 @@
-# Dataset augmentation usando PCA(incompleto)
-La idea de este experimento es
-1. Poner todos los samples de un mismo glifo(los landmarks, no el video en si) dentro de una matriz X
-2. Realizar PCA sobre esa matriz y ver las principales direcciones en las que la seña varia entre señantes, quedarse con la de mayor variabilidad, la de mayor autovalor
-3. Normalizar esos vectores para tener una representacion de la direccion en la que las señas varian y no en la magnitud
-4. Realizar eso para cada uno de los glifos(no tienen que ser todos, solo los suficientes para ver)
-5. Graficar un heatmap de la norma de las diferencias entre esos vectores de "principal variabilidad" entre señas, o agruparlos usando un algoritmo de clustering
+# PCA-Based Augmentation (Proposed)
 
-Mi idea detras de esto es ver si hay direcciones de variabilidad comun no importa la seña(siempre se mueve el brazo un poco mas para arriba, un poco mas para abajo, etc) para luego poder aplicar esas direcciones de variabilidad "universales" a los datos y aumentar el tamaño del dataset. La idea del heatmap es que si 2 señas sufren de una variabilidad en la misma direccion(ignoro la escala al normalizarlo para simplificar el proceso), entonces la norma del vector resultante de la diferencia entre ellos deberia aproximarse a 0
+## Motivation
+
+Inter-signer variability is a significant challenge in sign language recognition: two people producing the same sign may differ in arm elevation, hand orientation, and movement amplitude. If some of these variation directions are consistent across the vocabulary (i.e., common to many different signs), they can be extracted once and used as a general-purpose augmentation strategy.
+
+## Method
+
+1. For each sign gloss, stack all signer samples (landmark sequences) into a matrix **X** ∈ ℝ^{n × d}.
+2. Apply PCA to **X** and extract the principal variation direction **v₁** (the eigenvector corresponding to the largest eigenvalue).
+3. Normalize **v₁** to unit length, retaining direction but discarding scale.
+4. Repeat for each gloss to obtain a set of normalized principal variation vectors {**v₁**^(1), **v₁**^(2), ..., **v₁**^(G)}.
+5. Construct a pairwise difference norm heatmap: entry (i, j) = ‖**v₁**^(i) − **v₁**^(j)‖. If two glosses share a similar dominant variation direction, this norm approaches 0.
+6. Optionally cluster the variation vectors to identify groups of signs sharing a common variation axis.
+
+## Hypothesis
+
+If several glosses share a principal variation direction (e.g., the arm consistently goes slightly higher or lower across signers), that direction represents a signer-agnostic degree of freedom that can be applied as augmentation across all signs — not just the ones it was computed from. The heatmap and clustering step are designed to validate this hypothesis before applying the augmentation.
+
+## Status
+
+Proposed — not yet implemented.

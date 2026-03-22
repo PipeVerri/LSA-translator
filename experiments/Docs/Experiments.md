@@ -1,53 +1,118 @@
-# ¿Qué tan posible es hacer traducción en tiempo real de LSA a español?
+# How Feasible Is Real-Time LSA-to-Spanish Translation?
 
-En este documento voy a documentar mi proceso de pensamiento, qué probé, qué salió mal, y como tengo planeado seguir
-
----
-
-# Investigación previa y estado del arte
-
-La primera corriente (la que intenté replicar yo al principio) fue:
-
-1. **Entrenar una RNN para identificar glosas individuales** a partir de un video ya segmentado.
-2. Hacer **segmentación heurística** en tiempo real: mirar aceleración, ventanas de tamaño fijo, etc. para decidir cuándo alguien “hizo una seña”.
-3. Cada vez que las heurísticas dicen “acá hubo una seña”, recorto el pedazo y se lo paso a la RNN.
-
-El problema de este enfoque es que la segmentación heurística **se dejo de lado porque anda muy mal**. Algunos problemas son:
-1. Hay coarticulacion: Si hago la seña de yo("me apunto con el dedo indice") y luego la de voy(apunto hacia adelante con el indice):
-   - Si las grabara individualmente, el brazo iria desde abajo hacia apuntarme para "yo", o iria desde abajo hacia adelante para "voy"
-   - Al hacerlas juntas, primero me apunto, y luego apunto para adelante **sin llegar a bajar el brazo** o a pausar.
-2. La velocidad de una misma seña cambia dentro de una frase vs aislada, o hasta entre frases puede haber una gran diferencia(dependiendo de la velocidad del señante)
-
-Después vinieron los **modelos gloss-free**:
-
-- Hacen *todo* en un solo transformer:
-  - segmentación de glosas,
-  - interpretación textual de las glosas,
-  - traducción glosas → español.
-- Andan bien cuando tenés muchos datos, pero con datasets chicos (como LSA-T) funcionan peor porque les estás pidiendo aprender **tres tareas distintas a la vez** con poca señal.
-
-Lo más nuevo que está saliendo son cosas **semi-gloss-free**, que se parecen más a lo que quiero hacer con una LLM(explicados posteriormente):
-S
-- No dependen tanto de anotaciones perfectas de glosas.
-- Se apoyan en modelos de lenguaje grandes para la parte textual.
-- Dejan a los modelos de visión/secuencia concentrarse más en la parte de “qué está pasando en el video”.
+This document tracks the reasoning, experiments, results, and failures encountered throughout the project — including what each failure revealed and how it shaped the next step.
 
 ---
 
-# Resumen de experimentos
+## Prior Work and State of the Art
 
-- **Experimento 1:** RNN simple sobre LSA64 → buena clasificación aislada, mala en continuo por falta de segmentación.
-- **Experimento 2:** RNN más grande + datos de “no-seña” → mejora, pero sigue fallando la segmentación temporal real.
-- **Experimento 3:** Plan para pasar a LSA-T y modelos semi-gloss-free o gloss-free (modificando la arquitectura original).
+### First-Generation Approach: RNN + Heuristic Segmentation
+
+The earliest SLT systems followed a two-step pipeline:
+
+1. **Train an RNN to classify individual glosses** from pre-segmented video clips.
+2. **Segment the continuous stream heuristically** using acceleration peaks, fixed-size windows, or motion energy thresholds to decide when a sign has occurred.
+3. Feed each detected segment to the RNN for classification.
+
+This approach has been largely abandoned because heuristic segmentation **fails in practice**. The two main reasons are:
+
+- **Coarticulation:** Signs do not occur as discrete, isolated units in continuous signing. If a signer produces "me" (pointing the index finger toward oneself) followed by "go" (pointing forward), the arm does not return to a rest position between them — it transitions directly from one configuration to the next. In isolation, each sign has a clear trajectory; in context, that trajectory is modified by adjacent signs. Acceleration-based methods cannot reliably detect these boundaries.
+- **Speed variability:** The same sign may be executed at significantly different speeds depending on context, signer, and sentence structure. Fixed-window and threshold-based approaches have no way to adapt to this variability.
+
+### Second Generation: Gloss-Free End-to-End Models
+
+Gloss-free models address segmentation and translation simultaneously within a single transformer:
+
+- A single network learns sign segmentation, gloss interpretation, and text generation jointly.
+- They perform well with large datasets, but **degrade significantly on small datasets** like LSA-T, because they are being asked to learn three separate tasks simultaneously from a limited training signal.
+
+### Current State of the Art: Semi-Gloss-Free Models
+
+The most recent direction relaxes the gloss-free constraint while reducing dependence on dense gloss annotations:
+
+- Sign recognition and text generation are still handled by a unified model, but the architecture uses **large language models (LLMs)** to handle the linguistic component.
+- This allows the visual/temporal backbone to focus on motion representation, while the LLM handles text generation with strong language priors.
+- Performance is better than pure gloss-free models on small datasets.
+
+**This is the direction for Phase 2 of this project.**
+
 ---
-# Cosas para probar
 
-- Aumento de datos por **PCA** y **movimiento kinematico**
-- Modelo en dos etapas:
-  - detectar tipo de seña / no-seña,
-  - luego clasificar seña específica.
-- Semi-supervised:
-  - etiquetar fragmentos de LSA-T,
-  - mejorar alineaciones.
-# Atribuciones
-Este repositorio usa codigo de [LSA-T](https://github.com/midusi/LSA-T)
+## Experiment Summary
+
+### Experiment 1 — Baseline RNN on LSA64 (Isolated Signs)
+
+**Goal:** Train a vanilla RNN on pre-segmented LSA64 clips to establish a baseline and validate the landmark representation.
+
+**Setup:**
+- Dataset: LSA64, 2,548 training / 638 validation samples (80/20 split)
+- Input: 144-dim normalized landmark vectors per frame
+- Model: SimpleRNN (hidden\_dim=144, 5–7 layers, output over 65 classes)
+- Negative class: ~150 "no-sign" clips extracted from TED Talk recordings
+
+**Results:**
+
+| Metric | Value |
+|--------|-------|
+| Training accuracy | ~100% |
+| Validation accuracy | ~98.27% |
+| Real-world (continuous signing) | Fails — see below |
+
+<!-- TODO: Add training accuracy / loss curves (docs/figures/exp1_training_curves.png) -->
+<!-- TODO: Add confusion matrix on isolated test set (docs/figures/exp1_confusion_matrix.png) -->
+
+**Analysis:** The model learns the isolated sign recognition task well, confirming that the 144-dim landmark representation is sufficient for sign discrimination. However, performance collapses on continuous input. The model has no mechanism to locate sign boundaries in a streaming context, and the sliding window approach with a fixed confidence threshold is not a reliable substitute. This result establishes that the core problem in this pipeline is **temporal segmentation**, not representation or classifier capacity.
+
+---
+
+### Experiment 2 — Two-Stage Detection
+
+**Goal:** Improve robustness by separating hand dominance classification from sign classification.
+
+**Setup:**
+- Stage 1: RNN that classifies which hand is dominant for the current sign (right, left, or both).
+- Stage 2: Separate RNN classifiers conditioned on dominant hand.
+- Both models: SimpleRNN, same architecture as Experiment 1.
+
+**Results:**
+
+| Metric | Value |
+|--------|-------|
+| Validation accuracy | <!-- TODO: fill in --> |
+| Improvement over Experiment 1 | <!-- TODO: fill in --> |
+
+<!-- TODO: Add per-class accuracy bar chart (docs/figures/exp2_per_class_accuracy.png) -->
+<!-- TODO: Add softmax confidence distribution (docs/figures/exp2_confidence_distribution.png) -->
+
+**Analysis:** The two-stage architecture provides marginal improvement on isolated recognition but does not resolve the continuous segmentation problem. The bottleneck is architectural, not classifier-specific — a deeper fix requires replacing the heuristic segmentation stage entirely.
+
+---
+
+## Proposed Methods (Phase 1.5 — Not Yet Implemented)
+
+### Data Augmentation via Kinematic Noise
+
+Addresses data scarcity by generating anatomically plausible synthetic sign variants. See [`experiments/data_augmentation/01_kinematic_augmentation/`](../data_augmentation/01_kinematic_augmentation/README.md).
+
+### Data Augmentation via PCA
+
+Learns inter-signer variation directions and applies them as sign-agnostic augmentation axes. See [`experiments/data_augmentation/02_PCA_augmentation/`](../data_augmentation/02_PCA_augmentation/README.md).
+
+---
+
+## Phase 2 — Continuous SLT on LSA-T
+
+Phase 2 will move to the LSA-T dataset and adopt a semi-gloss-free transformer architecture.
+
+**Motivation:** The isolated-to-continuous gap cannot be bridged by improving the RNN or the segmentation heuristic. A reliable system requires an end-to-end sequence-to-sequence model that treats the full signing stream as input, without assuming pre-segmented clips.
+
+**Planned architecture:**
+- Transformer-based encoder for landmark sequences.
+- LLM-assisted decoding for Spanish text generation.
+- Based on the approach described in: <!-- TODO: Link the target paper here -->
+
+---
+
+## Attribution
+
+Training data from [LSA64](https://facundoq.github.io/datasets/lsa64/) by MIDUSI (Instituto de Investigación en Informática LIDI, Universidad Nacional de La Plata, Argentina).
