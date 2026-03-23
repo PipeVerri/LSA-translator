@@ -54,7 +54,7 @@ A **Recurrent Neural Network (RNN)** processes variable-length landmark sequence
 | Component | Configuration |
 |-----------|--------------|
 | Input | 144-dim landmark vector per frame |
-| Encoder | SimpleRNN (hidden\_dim=144, layers=5–7) |
+| Encoder | SimpleRNN (hidden\_dim=144, layers=7) |
 | Output | Softmax over 65 classes (64 signs + no-sign) |
 | Loss function | Cross-entropy |
 | Optimizer | Adam (lr=1e-4, weight\_decay=1e-4) |
@@ -62,11 +62,11 @@ A **Recurrent Neural Network (RNN)** processes variable-length landmark sequence
 | Training framework | PyTorch Lightning |
 | Experiment tracking | Weights & Biases |
 
-The real-time inference pipeline uses a **sliding window** (2 s at 12 FPS, stride 0.1 s) over a live landmark stream, filtering predictions by a softmax confidence threshold (`no_sign_prob < 0.3`).
+The real-time inference pipeline uses a **sliding window** (2 s at 6 FPS, stride 0.1 s) over a live landmark stream, filtering predictions by a softmax confidence threshold (`no_sign_prob < 0.3`, tuned manually).
 
 > See [`src/models/`](src/models/) and [`src/scripts/real_time_prediction.py`](src/scripts/real_time_prediction.py).
 
-![](/docs/experiment1-diagram.png)
+![](/docs/exp1/experiment1-diagram.png)
 
 ---
 
@@ -86,24 +86,15 @@ A vanilla RNN trained on pre-segmented LSA64 clips to establish an isolated-sign
 
 **Key finding:** Near-perfect accuracy on isolated signs, but the model fails entirely when applied to continuous signing. The bottleneck is temporal segmentation, not sign recognition.
 
-<!-- TODO: Add training loss/accuracy curves (docs/figures/exp1_training_curves.png) -->
-<!-- TODO: Add confusion matrix on isolated test set (docs/figures/exp1_confusion_matrix.png) -->
-
 ### Experiment 2 — Two-Stage Detection
 
 A two-stage architecture attempting to improve real-world robustness:
 1. **Stage 1 (Hand Dominance Detector):** classifies which hand is dominant for the current sign.
 2. **Stage 2 (Sign Classifier):** applies a hand-specific RNN classifier.
 
-| Metric | Value |
-|--------|-------|
-| Validation accuracy | <!-- TODO: fill in --> |
-| Improvement over Experiment 1 | <!-- TODO: fill in --> |
+When doing the same sign repeatedly, it gets detected when it starts matching with the processing window
 
-**Key finding:** The isolated-to-continuous gap persists regardless of classifier architecture. Temporal segmentation remains the limiting factor, pointing to a fundamental dataset problem rather than a model capacity problem.
-
-<!-- TODO: Add softmax confidence distribution plot (docs/figures/exp2_confidence_distribution.png) -->
-<!-- TODO: Add per-class accuracy bar chart (docs/figures/exp2_per_class_accuracy.png) -->
+**Key finding:** The isolated-to-continuous gap persists regardless of classifier6. L. Temporal segmentation remains the limiting factor, pointing to a fundamental dataset problem rather than a model capacity problem.
 
 ---
 
@@ -189,7 +180,7 @@ The hypothesis: if multiple glosses share a dominant variation direction (e.g., 
 
 **Phase 2** will transition from isolated sign recognition on LSA64 to continuous Sign Language Translation on **LSA-T**, using a transformer-based, semi-gloss-free architecture. The design will be based on:
 
-> <!-- TODO: Add LSA-T translation paper link here -->
+> https://sedici.unlp.edu.ar/handle/10915/176192
 
 The core motivation for this transition: the isolated-to-continuous gap cannot be closed by improving the RNN or the segmentation heuristic — it requires an end-to-end sequence-to-sequence architecture that models the full signing stream without assuming pre-segmented inputs.
 

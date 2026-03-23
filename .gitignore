@@ -1,8 +1,6 @@
 data/*
 !src/data/
 .idea/
-.obsidian/
-obsidian/Señario 2.pdf
 __pycache__/
 wandb/
 lightning_logs/

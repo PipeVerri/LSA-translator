@@ -36,4 +36,4 @@ trainer = L.Trainer(
 )
 
 dm = LSA64DataModule(root_dir / "data" / "LSA64", batch_size=config["batch_size"])
-trainer.fit(MODEL, )
+trainer.fit(MODEL, datamodule=dm)
