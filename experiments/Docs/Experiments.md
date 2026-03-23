@@ -100,9 +100,9 @@ Learns inter-signer variation directions and applies them as sign-agnostic augme
 
 ---
 
-## Phase 2 — Continuous SLT on LSA-T
+## Phase 2 — Continuous SLT on LSA-X
 
-Phase 2 will move to the LSA-T dataset and adopt a semi-gloss-free transformer architecture.
+Phase 2 will move to the LSA-T dataset and adopt a semi-gloss-free transformer architecture. [LSA-X](https://github.com/PipeVerri/LSA-X) is a dataset built by me
 
 **Motivation:** The isolated-to-continuous gap cannot be bridged by improving the RNN or the segmentation heuristic. A reliable system requires an end-to-end sequence-to-sequence model that treats the full signing stream as input, without assuming pre-segmented clips.
 

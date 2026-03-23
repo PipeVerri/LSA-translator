@@ -16,5 +16,6 @@ dependencies = [
     "yt-dlp",
     "tqdm",
     "wandb",
-    "matplotlib"
+    "matplotlib",
+    "rich"
 ]
